@@ -1,38 +1,43 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentient-X Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #020617; /* Slate 950 */
-            color: #f8fafc;
-            font-family: 'Inter', sans-serif;
-            overflow-x: hidden;
-        }
-        .font-mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentient-X Dashboard</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'bg-slate-950': '#020617',
+        'scrollbar-track': '#0f172a',
+        'scrollbar-thumb': '#334155',
+        'scrollbar-thumb-hover': '#475569',
+      },
+      fontFamily: {
+        inter: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace']
+      }
+    }
+  }
+}
+</script>
+
+<style>
+body::-webkit-scrollbar { width: 6px; }
+body::-webkit-scrollbar-track { background: #0f172a; }
+body::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+body::-webkit-scrollbar-thumb:hover { background: #475569; }
+</style>
+
+<!-- Import Maps -->
 <script type="importmap">
 {
   "imports": {
@@ -45,10 +50,151 @@
   }
 }
 </script>
+
 <link rel="stylesheet" href="/index.css">
 </head>
-<body>
-    <div id="root"></div>
-<script type="module" src="/index.tsx"></script>
+<body class="font-inter min-h-screen bg-bg-slate-950 text-white overflow-x-hidden">
+
+<div id="root" class="flex h-screen">
+  <!-- Sidebar -->
+  <aside id="sidebar" class="bg-gray-900 w-64 flex-shrink-0 transition-transform duration-300 transform -translate-x-64 md:translate-x-0">
+    <div class="p-4">
+      <h1 class="text-xl font-bold font-mono mb-6">Sentient-X</h1>
+      <nav class="space-y-4">
+        <a href="#" class="block px-3 py-2 rounded hover:bg-gray-800 transition">Dashboard</a>
+        <a href="#" class="block px-3 py-2 rounded hover:bg-gray-800 transition">Analytics</a>
+        <a href="#" class="block px-3 py-2 rounded hover:bg-gray-800 transition">Settings</a>
+        <a href="#" class="block px-3 py-2 rounded hover:bg-gray-800 transition">Profile</a>
+      </nav>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 flex flex-col p-6 space-y-6">
+    <!-- Header -->
+    <header class="flex justify-between items-center">
+      <div class="flex items-center space-x-4">
+        <button id="toggleSidebar" class="md:hidden px-3 py-2 bg-gray-800 rounded hover:bg-gray-700 transition">☰</button>
+        <h2 class="text-2xl font-semibold">Dashboard Overview</h2>
+      </div>
+      <div class="flex items-center space-x-4">
+        <input type="text" placeholder="Search..." class="px-3 py-2 rounded bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <button id="themeToggle" class="px-3 py-2 rounded bg-blue-600 hover:bg-blue-500 transition">Toggle Theme</button>
+      </div>
+    </header>
+
+    <!-- Analytics Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div class="p-4 bg-gray-800 rounded shadow">
+        <h3 class="text-lg font-medium">Users</h3>
+        <p class="text-2xl font-bold mt-2" id="usersCount">0</p>
+      </div>
+      <div class="p-4 bg-gray-800 rounded shadow">
+        <h3 class="text-lg font-medium">Revenue</h3>
+        <p class="text-2xl font-bold mt-2" id="revenueCount">$0</p>
+      </div>
+      <div class="p-4 bg-gray-800 rounded shadow">
+        <h3 class="text-lg font-medium">Sessions</h3>
+        <p class="text-2xl font-bold mt-2" id="sessionsCount">0</p>
+      </div>
+      <div class="p-4 bg-gray-800 rounded shadow">
+        <h3 class="text-lg font-medium">Errors</h3>
+        <p class="text-2xl font-bold mt-2" id="errorsCount">0</p>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section id="charts" class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+      <div id="lineChart" class="bg-gray-800 rounded shadow p-4 h-64 flex items-center justify-center font-mono"></div>
+      <div id="barChart" class="bg-gray-800 rounded shadow p-4 flex items-center justify-center font-mono h-64"></div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Legend } from "recharts";
+
+function Dashboard() {
+  const [lineData, setLineData] = React.useState([]);
+  const [barData, setBarData] = React.useState([]);
+  const [metrics, setMetrics] = React.useState({
+    users: 0,
+    revenue: 0,
+    sessions: 0,
+    errors: 0
+  });
+
+  React.useEffect(() => {
+    const ws = new WebSocket("wss://your-backend.example.com/dashboard");
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      if (data.metrics) setMetrics(data.metrics);
+      if (data.lineData) setLineData(data.lineData);
+      if (data.barData) setBarData(data.barData);
+    };
+
+    ws.onclose = () => console.log("WebSocket closed");
+    ws.onerror = (err) => console.error("WebSocket error", err);
+
+    return () => ws.close();
+  }, []);
+
+  React.useEffect(() => {
+    // Update metrics in DOM
+    document.getElementById('usersCount').textContent = metrics.users;
+    document.getElementById('revenueCount').textContent = `$${metrics.revenue}`;
+    document.getElementById('sessionsCount').textContent = metrics.sessions;
+    document.getElementById('errorsCount').textContent = metrics.errors;
+  }, [metrics]);
+
+  return (
+    <div className="flex flex-col space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <LineChart width={500} height={250} data={lineData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+          <XAxis dataKey="name" stroke="#f8fafc"/>
+          <YAxis stroke="#f8fafc"/>
+          <CartesianGrid stroke="#334155" strokeDasharray="3 3"/>
+          <Tooltip />
+          <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={2}/>
+        </LineChart>
+
+        <BarChart width={500} height={250} data={barData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+          <CartesianGrid stroke="#334155" strokeDasharray="3 3"/>
+          <XAxis dataKey="name" stroke="#f8fafc"/>
+          <YAxis stroke="#f8fafc"/>
+          <Tooltip/>
+          <Legend/>
+          <Bar dataKey="sales" fill="#f97316"/>
+        </BarChart>
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<Dashboard/>);
+
+// Sidebar toggle
+const sidebar = document.getElementById('sidebar');
+document.getElementById('toggleSidebar').addEventListener('click', () => {
+  sidebar.classList.toggle('-translate-x-64');
+});
+
+// Theme toggle
+const body = document.body;
+document.getElementById('themeToggle').addEventListener('click', () => {
+  if(body.classList.contains('bg-bg-slate-950')){
+    body.classList.remove('bg-bg-slate-950','text-white');
+    body.classList.add('bg-white','text-gray-900');
+  } else {
+    body.classList.remove('bg-white','text-gray-900');
+    body.classList.add('bg-bg-slate-950','text-white');
+  }
+});
+</script>
 </body>
 </html>
