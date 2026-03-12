@@ -1,0 +1,7 @@
+{
+  "name": "Sentient-X Architecture Dashboard",
+  "description": "A high-fidelity analysis platform for investigating the Integrated AI-Neural-Kinetic National Security Architecture and Android system permissions.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
