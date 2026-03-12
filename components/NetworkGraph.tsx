@@ -9,14 +9,16 @@ interface NetworkGraphProps {
 
 /* -------------------------------- CONFIG -------------------------------- */
 
-const STORAGE_KEY = "sentient-x-graph-positions-v2"
+const STORAGE_KEY = "sentient-x-graph-positions-v3"
 
 const GRAPH_CONFIG = {
   linkDistance: 180,
   chargeStrength: -1000,
   collisionRadius: 70,
   nodeRadius: 14,
-  hoverRadius: 18
+  hoverRadius: 18,
+  transitionFast: 150,
+  transitionSlow: 400
 }
 
 /* -------------------------------- HELPERS -------------------------------- */
@@ -62,8 +64,8 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
 
   const svgRef = useRef<SVGSVGElement | null>(null)
   const containerRef = useRef<SVGGElement | null>(null)
-
   const simulationRef = useRef<d3.Simulation<ArchitectureNode, undefined> | null>(null)
+  const animationFrame = useRef<number | null>(null)
 
   const [hoveredNode, setHoveredNode] = useState<ArchitectureNode | null>(null)
 
@@ -90,33 +92,47 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
     if (preparedNodes.length === 0) return
 
     const svg = d3.select(svgRef.current)
-
     svg.selectAll("*").remove()
 
     const width = svgRef.current.clientWidth
     const height = svgRef.current.clientHeight
 
-    /* ----- style defs ----- */
+    /* ----- defs ----- */
 
-    svg.append("defs")
-      .append("style")
-      .text(`
-        @keyframes dash { to { stroke-dashoffset:-20 } }
-        .link-flow { animation: dash 1.5s linear infinite }
-      `)
+    const defs = svg.append("defs")
+
+    defs.append("style").text(`
+      @keyframes dash { to { stroke-dashoffset:-20 } }
+      .link-flow { animation: dash 1.5s linear infinite }
+    `)
+
+    const glow = defs.append("filter")
+      .attr("id", "node-glow")
+      .attr("height", "300%")
+      .attr("width", "300%")
+      .attr("x", "-75%")
+      .attr("y", "-75%")
+
+    glow.append("feGaussianBlur")
+      .attr("stdDeviation", "3")
+      .attr("result", "coloredBlur")
+
+    const merge = glow.append("feMerge")
+    merge.append("feMergeNode").attr("in", "coloredBlur")
+    merge.append("feMergeNode").attr("in", "SourceGraphic")
 
     /* ----- zoom container ----- */
 
     const root = svg.append("g")
     containerRef.current = root.node()
 
-    svg.call(
-      d3.zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.2, 3])
-        .on("zoom", (event) => {
-          root.attr("transform", event.transform)
-        })
-    )
+    const zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.2, 4])
+      .on("zoom", (event) => {
+        root.attr("transform", event.transform)
+      })
+
+    svg.call(zoomBehavior)
 
     /* ----------------------------- SIMULATION ----------------------------- */
 
@@ -126,10 +142,12 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
         d3.forceLink<ArchitectureNode, ArchitectureLink>(links)
           .id(d => d.id)
           .distance(GRAPH_CONFIG.linkDistance)
+          .strength(0.6)
       )
       .force("charge", d3.forceManyBody().strength(GRAPH_CONFIG.chargeStrength))
       .force("center", d3.forceCenter(width / 2, height / 2))
       .force("collision", d3.forceCollide().radius(GRAPH_CONFIG.collisionRadius))
+      .alphaDecay(0.03)
 
     simulationRef.current = simulation
 
@@ -137,7 +155,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
 
     const link = root.append("g")
       .attr("stroke", "#64748b")
-      .attr("stroke-opacity", 0.3)
+      .attr("stroke-opacity", 0.35)
       .selectAll("line")
       .data(links)
       .join("line")
@@ -155,22 +173,25 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
       .attr("fill", d => getGroupColor(d.group))
       .attr("stroke", "#020617")
       .attr("stroke-width", 3)
+      .attr("filter", "url(#node-glow)")
       .style("cursor", "crosshair")
       .on("mouseover", (event, d) => {
+
         setHoveredNode(d)
 
         d3.select(event.currentTarget)
           .transition()
-          .duration(150)
+          .duration(GRAPH_CONFIG.transitionFast)
           .attr("r", GRAPH_CONFIG.hoverRadius)
           .attr("stroke-width", 5)
       })
       .on("mouseout", (event) => {
+
         setHoveredNode(null)
 
         d3.select(event.currentTarget)
           .transition()
-          .duration(150)
+          .duration(GRAPH_CONFIG.transitionFast)
           .attr("r", GRAPH_CONFIG.nodeRadius)
           .attr("stroke-width", 3)
       })
@@ -225,7 +246,16 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
         .attr("y", d => d.y!)
     })
 
-    return () => simulation.stop()
+    /* ----------------------------- AUTO STABILIZATION ----------------------------- */
+
+    simulation.on("end", () => {
+      savePositions(preparedNodes)
+    })
+
+    return () => {
+      simulation.stop()
+      if (animationFrame.current) cancelAnimationFrame(animationFrame.current)
+    }
 
   }, [preparedNodes, links])
 
@@ -236,6 +266,7 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
     if (!svgRef.current) return
 
     const observer = new ResizeObserver(() => {
+
       if (!simulationRef.current) return
 
       const width = svgRef.current!.clientWidth
@@ -246,7 +277,8 @@ const NetworkGraph: React.FC<NetworkGraphProps> = ({ nodes, links }) => {
         d3.forceCenter(width / 2, height / 2)
       )
 
-      simulationRef.current.alpha(0.3).restart()
+      simulationRef.current.alpha(0.25).restart()
+
     })
 
     observer.observe(svgRef.current)
